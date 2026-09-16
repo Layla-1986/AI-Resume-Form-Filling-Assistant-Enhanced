@@ -1,0 +1,47 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crx
+
+# Personal documents (avoid accidental commits)
+*.pdf
+*.doc
+*.docx
+*.rtf
+
+# Dependencies (if any)
+node_modules/
+
+# Build output
+dist/
+build/
+output/
+debug-logs/
+
+# Maintainer-local assets
+dbf0e3aad4a61c39dd6d22c06c7f415a.jpg
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local snapshots / external test packages
+external-test-package-*/
