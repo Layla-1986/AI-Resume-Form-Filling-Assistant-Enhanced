@@ -54,9 +54,23 @@
         field?.label || field?.placeholder || field?.name || field?.id
       );
       if (!label) return "";
+      const sectionContext = normalizeText(
+        [
+          field?.sectionLabel,
+          ...(Array.isArray(field?.sectionEvidence) ? field.sectionEvidence : []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+      const isCampusContext =
+        field?.sectionKey === "campus" ||
+        /(在校职务|校内职务|学生职务|校园经历|校园活动)/.test(sectionContext);
 
       if (field?.dateRole) {
         const dateKey = field.dateRole === "start" ? "startDate" : "endDate";
+        if (isCampusContext) {
+          return repeatedPath(field, "campusExperiences", dateKey);
+        }
         if (field.sectionKey === "education") return educationPath(field, dateKey);
         if (field.sectionKey === "internship") {
           return repeatedPath(field, "internships", dateKey);
@@ -66,9 +80,6 @@
         }
         if (field.sectionKey === "project") {
           return repeatedPath(field, "projects", dateKey);
-        }
-        if (field.sectionKey === "campus") {
-          return repeatedPath(field, "campusExperiences", dateKey);
         }
         if (field.sectionKey === "award") {
           return repeatedPath(field, "awards", "awardDate");
@@ -115,6 +126,24 @@
         if (/^(学历|学历层次|学位)$/.test(label)) return educationPath(field, "degree");
         if (/^(学校所在城市|学校城市|就读城市)$/.test(label)) {
           return educationPath(field, "city");
+        }
+      }
+
+      if (isCampusContext) {
+        if (/^(在校职务|校内职务|校园职务|学生职务|担任职务|担任职位|担任角色|职务名称|职务|职位)$/.test(label)) {
+          return repeatedPath(field, "campusExperiences", "role");
+        }
+        if (/^(职务描述|任职描述|工作描述|经历描述|活动描述|职责描述|主要职责|工作职责)$/.test(label)) {
+          return repeatedPath(field, "campusExperiences", "description");
+        }
+        if (/^开始(时间|日期)$/.test(label)) {
+          return repeatedPath(field, "campusExperiences", "startDate");
+        }
+        if (/^结束(时间|日期)$/.test(label)) {
+          return repeatedPath(field, "campusExperiences", "endDate");
+        }
+        if (/^(至今|是否至今|仍在任|是否在任)$/.test(label)) {
+          return repeatedPath(field, "campusExperiences", "isCurrent");
         }
       }
 

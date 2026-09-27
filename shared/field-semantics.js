@@ -77,6 +77,9 @@
         label: "校园经历",
         keywords: [
           "校园经历",
+          "在校职务",
+          "校内职务",
+          "学生职务",
           "学生组织",
           "社团",
           "班干部",
@@ -170,6 +173,10 @@
 
         if (rule.key === "campus" && matched.some((item) => /学生组织|社团|志愿服务|科研助理/.test(item))) {
           score += 5;
+        }
+
+        if (rule.key === "campus" && matched.some((item) => /在校职务|校内职务|学生职务/.test(item))) {
+          score += 12;
         }
 
         if (score > best.score) {

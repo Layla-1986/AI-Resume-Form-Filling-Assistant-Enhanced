@@ -71,6 +71,48 @@ test("common campus recruiting labels receive deterministic resume paths", () =>
   }
 });
 
+test("campus position aliases map to the matching campus record role", () => {
+  const cases = ["在校职务", "担任职务", "担任职位", "校园职务", "学生职务", "职务名称"];
+
+  for (const label of cases) {
+    assert.equal(
+      commonFill.getDeterministicCommonPath?.({
+        label,
+        sectionKey: "campus",
+        repeatIndex: 1,
+      }),
+      "campusExperiences.1.role"
+    );
+  }
+});
+
+test("on-campus position card fields map entirely to the same campus record", () => {
+  const cases = [
+    [{ label: "职务名称", sectionKey: "campus", repeatIndex: 1 }, "campusExperiences.1.role"],
+    [{ label: "职务描述", sectionKey: "campus", repeatIndex: 1 }, "campusExperiences.1.description"],
+    [{ label: "开始时间", sectionKey: "campus", repeatIndex: 1 }, "campusExperiences.1.startDate"],
+    [{ label: "结束时间", sectionKey: "campus", repeatIndex: 1 }, "campusExperiences.1.endDate"],
+    [{ label: "至今", sectionKey: "campus", repeatIndex: 1 }, "campusExperiences.1.isCurrent"],
+  ];
+
+  for (const [field, expected] of cases) {
+    assert.equal(commonFill.getDeterministicCommonPath?.(field), expected);
+  }
+});
+
+test("explicit on-campus section label overrides a polluted internship section key", () => {
+  const cases = [
+    [{ label: "职务名称", sectionKey: "internship", sectionLabel: "在校职务", repeatIndex: 1 }, "campusExperiences.1.role"],
+    [{ label: "职务描述", sectionKey: "internship", sectionLabel: "在校职务", repeatIndex: 1 }, "campusExperiences.1.description"],
+    [{ label: "开始时间", sectionKey: "internship", sectionLabel: "在校职务", repeatIndex: 1 }, "campusExperiences.1.startDate"],
+    [{ label: "结束时间", sectionKey: "internship", sectionLabel: "在校职务", repeatIndex: 1 }, "campusExperiences.1.endDate"],
+  ];
+
+  for (const [field, expected] of cases) {
+    assert.equal(commonFill.getDeterministicCommonPath?.(field), expected);
+  }
+});
+
 test("common field values derive English level, study mode, location, and computer skills", () => {
   const profile = {
     personal: { ethnicity: "", nationality: "汉族", height: "175", weight: "65" },

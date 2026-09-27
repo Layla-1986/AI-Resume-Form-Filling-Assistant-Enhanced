@@ -15,6 +15,7 @@ test("popup fallback injection includes all shared content helpers", () => {
   assert.match(source, /shared\/field-semantics\.js/);
   assert.match(source, /shared\/repeat-expansion\.js/);
   assert.match(source, /shared\/award-fill\.js/);
+  assert.match(source, /shared\/project-fill\.js/);
   assert.match(source, /shared\/common-field-fill\.js/);
   assert.match(source, /shared\/local-award-import\.js/);
   assert.match(source, /shared\/fill-runtime\.js/);

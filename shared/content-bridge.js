@@ -11,7 +11,7 @@
   function () {
     "use strict";
 
-    const CONTENT_SCRIPT_VERSION = "2026-09-15-moka-menu-target-v8";
+    const CONTENT_SCRIPT_VERSION = "2026-09-27-campus-heading-priority-v16";
 
     function contentScriptHasDiagnosticsSupport(status) {
       return Boolean(

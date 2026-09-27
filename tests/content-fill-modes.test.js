@@ -317,6 +317,26 @@ function loadMokaDomHelpers() {
   return context.module.exports;
 }
 
+function loadRepeatedCardHelpers() {
+  const source = fs.readFileSync(path.join(__dirname, "../content.js"), "utf8");
+  const start = source.indexOf("  function getRepeatedCardMeta(el) {");
+  const end = source.indexOf("  function getMokaRepeatGroupId(el) {", start);
+  if (start === -1 || end === -1) {
+    return {};
+  }
+  const snippet = `
+    const repeatGroupIds = new WeakMap();
+    let repeatGroupSequence = 0;
+    function normalizeText(value) { return String(value || "").trim(); }
+    ${source.slice(start, end)}
+    module.exports = { getRepeatedCardMeta };
+  `;
+  const context = { module: { exports: {} }, exports: {} };
+  vm.createContext(context);
+  vm.runInContext(snippet, context);
+  return context.module.exports;
+}
+
 function loadDeriveFillValue() {
   const source = fs.readFileSync(path.join(__dirname, "../content.js"), "utf8");
   const start = source.indexOf("  function normalizeTransform(transform) {");
@@ -766,6 +786,38 @@ test("Moka DOM helpers recognize selects, card identity, and date positions", ()
   );
   assert.equal(helpers.getMokaRepeatGroupId(parts[0]), helpers.getMokaRepeatGroupId(parts[3]));
   assert.notEqual(helpers.getMokaRepeatGroupId(parts[0]), helpers.getMokaRepeatGroupId(otherCardPart));
+});
+
+test("generic numbered work cards expose one shared record index to every field", () => {
+  const helpers = loadRepeatedCardHelpers();
+  assert.equal(typeof helpers.getRepeatedCardMeta, "function");
+
+  const makeCard = (ordinal) => {
+    const heading = { textContent: `工作信息${ordinal}`, previousElementSibling: null };
+    const card = {
+      textContent: "公司名称 起止时间 任职部门 担任岗位 工作职责",
+      previousElementSibling: heading,
+      parentElement: null,
+    };
+    const makeField = () => ({
+      parentElement: card,
+      closest() { return null; },
+    });
+    return { card, first: makeField(), second: makeField() };
+  };
+
+  const firstCard = makeCard(1);
+  const secondCard = makeCard(2);
+  const firstCompany = helpers.getRepeatedCardMeta(firstCard.first);
+  const firstTitle = helpers.getRepeatedCardMeta(firstCard.second);
+  const secondCompany = helpers.getRepeatedCardMeta(secondCard.first);
+
+  assert.equal(firstCompany.repeatGroupId, firstTitle.repeatGroupId);
+  assert.notEqual(firstCompany.repeatGroupId, secondCompany.repeatGroupId);
+  assert.equal(firstCompany.repeatIndexHint, 0);
+  assert.equal(secondCompany.repeatIndexHint, 1);
+  assert.equal(firstCompany.sectionKey, "work");
+  assert.equal(secondCompany.sectionKey, "work");
 });
 
 test("Moka year and month controls derive only their requested date part", () => {

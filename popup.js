@@ -102,7 +102,7 @@ if (!contentBridge) {
 const RESUME_PROFILE_KEY = resumeStorage.keys.profile;
 const RESUME_SCHEMA_VERSION_KEY = resumeStorage.keys.schemaVersion;
 const RESUME_IMPORT_RAW_TEXT_KEY = resumeStorage.keys.rawText;
-const MAPPING_CACHE_KEY = "fieldMappingCacheV7";
+  const MAPPING_CACHE_KEY = "fieldMappingCacheV11";
 
 const BUILTIN_MODEL = modelStorage.DEFAULT_MODEL;
 
@@ -1501,6 +1501,7 @@ async function injectContentScript(tabId) {
         "shared/field-semantics.js",
         "shared/repeat-expansion.js",
         "shared/award-fill.js",
+        "shared/project-fill.js",
         "shared/common-field-fill.js",
         "shared/local-award-import.js",
         "shared/fill-runtime.js",

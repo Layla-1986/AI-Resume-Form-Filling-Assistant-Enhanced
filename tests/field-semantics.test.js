@@ -40,6 +40,31 @@ test("inferSectionFromTexts recognizes campus sections", () => {
   assert.equal(section.label, "校园经历");
 });
 
+test("inferSectionFromTexts treats on-campus positions as campus experience", () => {
+  const section = semantics.inferSectionFromTexts([
+    "在校职务",
+    "组织名称",
+    "任职时间",
+    "工作描述",
+  ]);
+
+  assert.equal(section.key, "campus");
+  assert.equal(section.label, "校园经历");
+  assert.match(section.evidence, /在校职务/);
+});
+
+test("explicit on-campus position heading outranks filled internship-like values", () => {
+  const section = semantics.inferSectionFromTexts([
+    "在校职务",
+    "职务名称",
+    "大模型应用开发实习生",
+    "职务描述",
+  ]);
+
+  assert.equal(section.key, "campus");
+  assert.equal(section.label, "校园经历");
+});
+
 test("inferSectionFromTexts recognizes competition award sections instead of campus", () => {
   const section = semantics.inferSectionFromTexts([
     "竞赛获奖",

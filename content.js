@@ -41,6 +41,12 @@
     return;
   }
 
+  const projectFill = window.ResumeProjectFill;
+  if (!projectFill) {
+    console.error("[简历填表助手] Project fill helpers not found");
+    return;
+  }
+
   const commonFieldFill = window.ResumeCommonFieldFill;
   if (!commonFieldFill) {
     console.error("[简历填表助手] Common field fill helpers not found");
@@ -72,7 +78,7 @@
   }
 
   const EXT_TAG = "[简历填表助手]";
-  const MAPPING_CACHE_KEY = "fieldMappingCacheV7";
+  const MAPPING_CACHE_KEY = "fieldMappingCacheV11";
   const CONTROL_SELECTOR =
     'input, textarea, select, button, option, svg, path, style, script, noscript, [contenteditable="true"], [contenteditable=""], [aria-hidden="true"]';
   const LABEL_LIKE_SELECTOR =
@@ -380,9 +386,16 @@
           mapping.resumePath,
           mappings
         );
+        const resolvedProjectDescription = projectFill.resolveProjectDescriptionValue(
+          resumeProfile,
+          field,
+          mapping.resumePath,
+          scan.fields
+        );
         const rawValue =
           resolvedCommonValue ||
           resolvedAwardName ||
+          resolvedProjectDescription ||
           schema.getValueByPath(resumeProfile, mapping.resumePath);
         const finalValue = deriveFillValue(rawValue, mapping.transform, runtime);
 
@@ -794,6 +807,10 @@
     for (const field of Array.isArray(fields) ? fields : []) {
       if (!repeatExpansion.getSectionConfig(field?.sectionKey)) continue;
       if (field.repeatGroupId) {
+        if (Number.isInteger(field.repeatIndexHint) && field.repeatIndexHint >= 0) {
+          field.repeatIndex = field.repeatIndexHint;
+          continue;
+        }
         if (!groupedIndexes.has(field.sectionKey)) {
           groupedIndexes.set(field.sectionKey, new Map());
         }
@@ -817,7 +834,61 @@
       occurrences.set(occurrenceKey, repeatIndex + 1);
     }
 
+    annotateCampusExperienceIndexes(fields);
+    annotateInternshipFields(fields);
+    projectFill.annotateProjectFields(fields);
+
     return fields;
+  }
+
+  function annotateCampusExperienceIndexes(fields) {
+    let currentIndex = -1;
+    const recordAnchor = /^(活动名称|活动主题|活动组织名称|组织名称|组织机构|所在组织|社团名称|社团组织|学生组织名称|校园组织名称)$/;
+
+    for (const field of Array.isArray(fields) ? fields : []) {
+      if (field?.sectionKey !== "campus") continue;
+
+      if (field.repeatGroupId && Number.isInteger(field.repeatIndex)) {
+        currentIndex = field.repeatIndex;
+        continue;
+      }
+
+      const label = normalizeRepeatFieldLabel(
+        field.label || field.name || field.placeholder
+      );
+      if (recordAnchor.test(label)) {
+        currentIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+      }
+      if (currentIndex >= 0) {
+        field.repeatIndex = currentIndex;
+      }
+    }
+  }
+
+  function annotateInternshipFields(fields) {
+    const descriptionLabel = /^(描述|内容|职责|主要职责|工作内容|工作职责|岗位职责|职位职责|岗位描述|职位描述|实习描述|实习内容|实习职责)$/;
+    const list = Array.isArray(fields) ? fields : [];
+
+    for (let index = 0; index < list.length; index += 1) {
+      const field = list[index];
+      if (!field || (field.sectionKey && field.sectionKey !== "internship")) continue;
+      const label = normalizeRepeatFieldLabel(
+        field.label || field.name || field.placeholder
+      );
+      if (!descriptionLabel.test(label)) continue;
+
+      for (let nearbyIndex = index - 1; nearbyIndex >= 0; nearbyIndex -= 1) {
+        const nearby = list[nearbyIndex];
+        if (!nearby) continue;
+        if (nearby.sectionKey && nearby.sectionKey !== "internship") break;
+        if (nearby.sectionKey === "internship" && Number.isInteger(nearby.repeatIndex)) {
+          field.sectionKey = "internship";
+          field.sectionLabel = field.sectionLabel || "实习经历";
+          field.repeatIndex = nearby.repeatIndex;
+          break;
+        }
+      }
+    }
   }
 
   function alignRepeatedResumePath(resumePath, field) {
@@ -832,6 +903,60 @@
     if (!match) return resumePath;
 
     return `${match[1]}.${field.repeatIndex}.${match[2]}`;
+  }
+
+  function alignNarrativePathToNearbyAnchor(resumePath, field, fields, rawMappings) {
+    const pathMatch = String(resumePath || "").match(
+      /^(internships|projects)\.(\d+)\.(description|highlights)$/
+    );
+    if (!pathMatch) return "";
+
+    const label = normalizeRepeatFieldLabel(
+      field?.label || field?.name || field?.placeholder
+    );
+    if (!/(描述|说明|介绍|内容|职责|成果|业绩|成效)/.test(label)) return "";
+
+    const list = Array.isArray(fields) ? fields : [];
+    const fieldIndex = list.indexOf(field);
+    if (fieldIndex < 0) return "";
+
+    const mappingByFieldId = new Map(
+      (Array.isArray(rawMappings) ? rawMappings : []).map((mapping) => [
+        String(mapping?.fieldId || ""),
+        String(mapping?.resumePath || ""),
+      ])
+    );
+    const profileKey = pathMatch[1];
+    const suffix = pathMatch[3];
+    const sameGroup = field?.repeatGroupId
+      ? list.filter(
+          (candidate) =>
+            candidate !== field && candidate?.repeatGroupId === field.repeatGroupId
+        )
+      : [];
+    const preceding = list.slice(0, fieldIndex).reverse();
+    const candidates = [...sameGroup, ...preceding];
+    const seen = new Set();
+
+    for (const candidate of candidates) {
+      const candidateId = String(candidate?.fieldId || "");
+      if (!candidateId || seen.has(candidateId)) continue;
+      seen.add(candidateId);
+
+      const candidatePath = alignRepeatedResumePath(
+        mappingByFieldId.get(candidateId) || "",
+        candidate
+      );
+      const candidateMatch = candidatePath.match(
+        /^(internships|projects)\.(\d+)\.([^.]+)$/
+      );
+      if (!candidateMatch || candidateMatch[1] !== profileKey) continue;
+      if (/^(description|highlights)$/.test(candidateMatch[3])) continue;
+
+      return `${profileKey}.${candidateMatch[2]}.${suffix}`;
+    }
+
+    return "";
   }
 
   function normalizeMappings(rawMappings, fields) {
@@ -853,9 +978,16 @@
       const field = fieldById.get(fieldId);
       const deterministicAwardPath = awardFill.getDeterministicAwardPath(field);
       const deterministicCommonPath = commonFieldFill.getDeterministicCommonPath(field);
+      const anchoredNarrativePath = alignNarrativePathToNearbyAnchor(
+        requestedResumePath,
+        field,
+        fields,
+        rawMappings
+      );
       const resumePath =
         deterministicAwardPath ||
         deterministicCommonPath ||
+        anchoredNarrativePath ||
         alignRepeatedResumePath(requestedResumePath, field);
       const transform = deterministicCommonPath
         ? { type: "none" }
@@ -1173,7 +1305,9 @@
         inputType: baseInputType,
       });
       const mokaDateMeta = getMokaDateMeta(el);
-      const repeatGroupId = getMokaRepeatGroupId(el);
+      const repeatedCardMeta = getRepeatedCardMeta(el);
+      const mokaRepeatGroupId = getMokaRepeatGroupId(el);
+      const repeatGroupId = mokaRepeatGroupId || repeatedCardMeta.repeatGroupId;
       const commonMeta = {
         required: Boolean(el.required || el.getAttribute("aria-required") === "true"),
         context: semanticMeta.context,
@@ -1181,6 +1315,7 @@
         sectionLabel: semanticMeta.sectionLabel,
         sectionEvidence: semanticMeta.sectionEvidence,
         nearbyLabels: semanticMeta.nearbyLabels,
+        ...repeatedCardMeta,
         ...getMokaSectionMeta(el),
         ...(mokaDateMeta || {}),
         ...(repeatGroupId ? { repeatGroupId } : {}),
@@ -1603,6 +1738,74 @@
     );
   }
 
+  function getRepeatedCardMeta(el) {
+    const headingPattern = /^(工作|实习|教育|项目|获奖|证书|语言|校园活动|校园|在校职务|校内职务)(?:信息|经历|经验|情况)?\s*(\d+)$/;
+    const sectionKeys = {
+      "工作": "work",
+      "实习": "internship",
+      "教育": "education",
+      "项目": "project",
+      "获奖": "award",
+      "证书": "certificate",
+      "语言": "language",
+      "校园活动": "campus",
+      "校园": "campus",
+      "在校职务": "campus",
+      "校内职务": "campus",
+    };
+
+    const readHeading = (node) => {
+      const text = normalizeText(node?.textContent || "").replace(/[：:]$/, "");
+      const match = text.match(headingPattern);
+      if (!match) return null;
+      const ordinal = Number(match[2]);
+      if (!Number.isInteger(ordinal) || ordinal < 1) return null;
+      return {
+        title: text,
+        sectionKey: sectionKeys[match[1]] || "",
+        repeatIndexHint: ordinal - 1,
+      };
+    };
+
+    let node = el?.parentElement || null;
+    for (let depth = 0; node && depth < 12; depth += 1, node = node.parentElement) {
+      let sibling = node.previousElementSibling;
+      for (let offset = 0; sibling && offset < 3; offset += 1, sibling = sibling.previousElementSibling) {
+        const heading = readHeading(sibling);
+        if (!heading) continue;
+        if (!repeatGroupIds.has(node)) {
+          repeatGroupSequence += 1;
+          repeatGroupIds.set(node, `numbered-card-${repeatGroupSequence}`);
+        }
+        return {
+          repeatGroupId: repeatGroupIds.get(node),
+          repeatIndexHint: heading.repeatIndexHint,
+          sectionKey: heading.sectionKey,
+          sectionLabel: heading.title,
+          sectionEvidence: [heading.title],
+        };
+      }
+
+      const children = Array.from(node.children || []).slice(0, 3);
+      for (const child of children) {
+        const heading = readHeading(child);
+        if (!heading) continue;
+        if (!repeatGroupIds.has(node)) {
+          repeatGroupSequence += 1;
+          repeatGroupIds.set(node, `numbered-card-${repeatGroupSequence}`);
+        }
+        return {
+          repeatGroupId: repeatGroupIds.get(node),
+          repeatIndexHint: heading.repeatIndexHint,
+          sectionKey: heading.sectionKey,
+          sectionLabel: heading.title,
+          sectionEvidence: [heading.title],
+        };
+      }
+    }
+    return {};
+  }
+
   function getMokaRepeatGroupId(el) {
     const group = el?.closest?.('[class*="apply-fields-"][class*="multi-"]');
     if (!group) return "";
@@ -1622,6 +1825,8 @@
         "工作经历": "work", "实习经历": "internship",
         "教育背景": "education", "教育经历": "education",
         "项目经验": "project", "项目经历": "project",
+        "校园经历": "campus", "校园活动经历": "campus", "校园活动": "campus",
+        "在校职务": "campus", "校内职务": "campus", "学生职务": "campus",
         "获奖经历": "award", "语言能力": "language",
       }[title];
       return sectionKey ? { sectionKey, sectionLabel: title, sectionEvidence: [title] } : {};

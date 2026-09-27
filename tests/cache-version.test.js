@@ -18,6 +18,6 @@ test("repeat-record rollout invalidates older mapping caches in both entry point
 
   assert.ok(popupMatch);
   assert.ok(contentMatch);
-  assert.equal(contentMatch[1], "fieldMappingCacheV7");
+  assert.equal(contentMatch[1], "fieldMappingCacheV11");
   assert.equal(popupMatch[1], contentMatch[1]);
 });
